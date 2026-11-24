@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="ko" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>바이오모프 진화 시뮬레이션 - 기본 도형에서 생물체로</title>
+    <!-- Tailwind CSS for modern styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkBg: '#0f172a',
+                        cardBg: '#1e293b',
+                        accent: '#38bdf8'
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+        }
+        canvas {
+            touch-action: none;
+        }
+        /* Custom scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <header class="bg-cardBg border-b border-slate-700 px-6 py-4 flex flex-wrap items-center justify-between shadow-lg">
+        <div class="flex items-center space-x-3">
+            <div class="bg-gradient-to-tr from-sky-500 to-emerald-400 text-white p-2.5 rounded-xl shadow-md">
+                <i class="fa-solid fa-shapes text-xl"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold tracking-tight text-white">도형에서 생물체로의 진화 시뮬레이션</h1>
+                <p class="text-xs text-slate-400">1세대 기본 도형(원·사각형)에서 시작하여 복잡한 생물 형태로 진화합니다.</p>
+            </div>
+        </div>
+        <div class="flex items-center space-x-3 mt-3 sm:mt-0">
+            <button id="btn-help" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg text-xs font-medium transition flex items-center space-x-1.5">
+                <i class="fa-solid fa-circle-question"></i>
+                <span>도움말</span>
+            </button>
+            <button id="btn-reset" class="px-3 py-1.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 rounded-lg text-xs font-medium transition flex items-center space-x-1.5">
+                <i class="fa-solid fa-rotate-right"></i>
+                <span>기본 도형으로 리셋</span>
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-4 gap-6">
+        
+        <!-- Left Sidebar: Controls & Gene Inspector -->
+        <div class="lg:col-span-1 flex flex-col space-y-6">
+            
+            <!-- Evolution Controls Card -->
+            <div class="bg-cardBg rounded-2xl p-5 border border-slate-700 shadow-xl">
+                <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-4 flex items-center space-x-2">
+                    <i class="fa-solid fa-sliders text-sky-400"></i>
+                    <span>진화 제어판</span>
+                </h2>
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">돌연변이율 (Mutation Rate: <span id="val-mutation-rate" class="text-sky-400 font-bold">1</span>)</label>
+                        <input type="range" id="input-mutation-rate" min="1" max="9" value="1" class="w-full accent-sky-500 bg-slate-700 rounded-lg h-2 cursor-pointer">
+                        <div class="flex justify-between text-[10px] text-slate-500 mt-1">
+                            <span>낮음 (안정적)</span>
+                            <span>높음 (역동적)</span>
+                        </div>
+                    </div>
+
+                    <div class="pt-2 border-t border-slate-700/60">
+                        <label class="block text-xs font-medium text-slate-400 mb-1">자동 진화 (Auto-Evolve)</label>
+                        <div class="flex space-x-2">
+                            <button id="btn-auto-evolve" class="flex-1 py-2 px-3 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-semibold shadow-md transition flex items-center justify-center space-x-1.5">
+                                <i class="fa-solid fa-play" id="icon-auto"></i>
+                                <span id="text-auto">자동 진화 시작</span>
+                            </button>
+                            <select id="select-speed" class="bg-slate-700 text-slate-200 text-xs rounded-xl px-2 border border-slate-600 focus:outline-none">
+                                <option value="1500">느림 (1.5초)</option>
+                                <option value="800" selected>보통 (0.8초)</option>
+                                <option value="350">빠름 (0.3초)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="pt-2 border-t border-slate-700/60 flex space-x-2">
+                        <button id="btn-export" class="flex-1 py-2 px-3 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-xl text-xs font-medium transition flex items-center justify-center space-x-1">
+                            <i class="fa-solid fa-code"></i>
+                            <span>유전자 코드 복사</span>
+                        </button>
+                        <button id="btn-import" class="flex-1 py-2 px-3 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-xl text-xs font-medium transition flex items-center justify-center space-x-1">
+                            <i class="fa-solid fa-file-import"></i>
+                            <span>코드 가져오기</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Selected Biomorph Gene Inspector -->
+            <div class="bg-cardBg rounded-2xl p-5 border border-slate-700 shadow-xl flex-1 flex flex-col">
+                <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-3 flex items-center space-x-2">
+                    <i class="fa-solid fa-microscope text-emerald-400"></i>
+                    <span>형태 유전자 구조 (Genes)</span>
+                </h2>
+                <p class="text-xs text-slate-400 mb-3">현재 중앙 부모 개체의 9가지 유전자 값입니다. 1세대는 단순한 원/사각형 도형에서 시작합니다.</p>
+                
+                <div id="gene-list" class="space-y-2 overflow-y-auto max-h-64 pr-1 text-xs">
+                    <!-- Dynamically populated gene inputs -->
+                </div>
+                <div class="mt-4 pt-3 border-t border-slate-700 flex justify-between items-center text-xs text-slate-400">
+                    <span>세대(Generation): <strong id="txt-generation" class="text-white text-sm">1</strong>세대</span>
+                    <button id="btn-apply-genes" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-medium transition shadow">적용하기</button>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Right Main Content: Breeding Grid & Ancestor Tree -->
+        <div class="lg:col-span-3 flex flex-col space-y-6">
+            
+            <!-- Breeding Chamber (Offspring Grid: 3x3) -->
+            <div class="bg-cardBg rounded-2xl p-5 border border-slate-700 shadow-xl flex flex-col">
+                <div class="flex justify-between items-center mb-4">
+                    <div>
+                        <h2 class="text-base font-bold text-white flex items-center space-x-2">
+                            <i class="fa-solid fa-seedling text-amber-400"></i>
+                            <span>번식 챔버 (Offspring Selection)</span>
+                        </h2>
+                        <p class="text-xs text-slate-400">가장 마음에 드는 개체를 클릭하세요. 해당 개체가 중앙 부모가 되어 자손을 퍼뜨립니다.</p>
+                    </div>
+                    <div class="text-xs bg-slate-800 text-slate-300 px-3 py-1.5 rounded-xl border border-slate-700">
+                        중앙 = 부모 개체 (Parent)
+                    </div>
+                </div>
+
+                <!-- 3x3 Grid Container -->
+                <div id="breeding-grid" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <!-- Populated dynamically via JS -->
+                </div>
+            </div>
+
+            <!-- Evolutionary Lineage / Ancestor History -->
+            <div class="bg-cardBg rounded-2xl p-5 border border-slate-700 shadow-xl">
+                <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-3 flex items-center space-x-2">
+                    <i class="fa-solid fa-timeline text-purple-400"></i>
+                    <span>진화 계통수 기록 (도형 ➔ 생물체)</span>
+                </h2>
+                <div id="lineage-container" class="flex items-center space-x-3 overflow-x-auto py-2 px-1">
+                    <span class="text-xs text-slate-500 italic">조상 개체들이 여기에 기록됩니다. 세대를 진행해 보세요!</span>
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Help Modal -->
+    <div id="modal-help" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-cardBg border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative">
+            <button id="modal-close" class="absolute top-4 right-4 text-slate-400 hover:text-white text-lg">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <h3 class="text-lg font-bold text-white mb-3 flex items-center space-x-2">
+                <i class="fa-solid fa-shapes text-sky-400"></i>
+                <span>도형에서 생물체로의 진화 안내</span>
+            </h3>
+            <div class="space-y-3 text-xs text-slate-300 leading-relaxed">
+                <p><strong>🐸 1세대 (기본 올챙이 도형):</strong> 시뮬레이션은 유선형 머리와 꼬리가 연결된 기본적인 올챙이(Tadpole) 모양에서 시작합니다.</p>
+                <p><strong>🧬 돌연변이와 유전자:</strong> 세대를 거듭하며 돌연변이가 누적되면, 올챙이의 꼬리가 붕괴되고 다리, 지느러미, 촉수, 가지 형태 등의 유기체 생물체로 진화합니다.</p>
+                <p><strong>🌱 번식 방법:</strong> 9마리의 자손 중 원하는 생물 형태를 클릭하면 새로운 부모가 되며, 세대가 올라갈수록 더욱 복잡하고 아름다운 생물체로 발전합니다.</p>
+            </div>
+            <div class="mt-6 text-right">
+                <button id="btn-help-ok" class="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-semibold shadow">확인</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import Modal -->
+    <div id="modal-import" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-cardBg border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
+            <button id="import-close" class="absolute top-4 right-4 text-slate-400 hover:text-white text-lg">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <h3 class="text-lg font-bold text-white mb-3">유전자 코드 가져오기</h3>
+            <p class="text-xs text-slate-400 mb-3">쉼표 또는 공백으로 구분된 9자리 유전자 값을 입력하세요.</p>
+            <textarea id="import-textarea" rows="3" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-sky-500" placeholder="예: 0, 0, 0, 0, 0, 0, 0, 0, 0"></textarea>
+            <div class="mt-4 flex justify-end space-x-2">
+                <button id="import-cancel" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-xl text-xs font-medium">취소</button>
+                <button id="import-submit" class="px-4 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-semibold shadow">불러오기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Message Box Overlay -->
+    <div id="message-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-cardBg border border-slate-700 rounded-2xl max-w-sm w-full p-6 shadow-2xl text-center">
+            <div id="msg-icon" class="text-3xl text-sky-400 mb-3"><i class="fa-solid fa-circle-info"></i></div>
+            <p id="msg-text" class="text-sm text-slate-200 mb-5 font-medium">메시지 내용</p>
+            <button id="msg-ok" class="w-full py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-semibold shadow">확인</button>
+        </div>
+    </div>
+
+    <script>
+        // Custom message box replacement for alert()
+        function showMessage(text, type = 'info') {
+            const modal = document.getElementById('message-modal');
+            const msgText = document.getElementById('msg-text');
+            const icon = document.getElementById('msg-icon');
+            
+            msgText.textContent = text;
+            if (type === 'error') {
+                icon.innerHTML = '<i class="fa-solid fa-circle-exclamation text-rose-400"></i>';
+            } else if (type === 'success') {
+                icon.innerHTML = '<i class="fa-solid fa-circle-check text-emerald-400"></i>';
+            } else {
+                icon.innerHTML = '<i class="fa-solid fa-circle-info text-sky-400"></i>';
+            }
+            modal.classList.remove('hidden');
+        }
+
+        document.getElementById('msg-ok').addEventListener('click', () => {
+            document.getElementById('message-modal').classList.add('hidden');
+        });
+
+        // --- EVOLUTIONARY ENGINE: FROM BASIC SHAPES TO ORGANIC BIOMORPHS ---
+        let currentGeneration = 1;
+        // 1세대 초기 유전자: [0,0,0,0,0,0,0,0,0] -> 기본 올챙이 형태
+        let parentGenome = [0, 0, 0, 0, 0, 0, 0, 0, 0]; 
+        let mutationRate = 1;
+        let autoEvolveInterval = null;
+        let ancestorHistory = [];
+
+        const geneLabels = [
+            "몸통/머리 크기", 
+            "꼬리/지느러미 곡률", 
+            "분기/촉수 각도", 
+            "유기적 분기 깊이", 
+            "대칭성 모드", 
+            "색상/세포 변이 A", 
+            "세포 마디 계수", 
+            "꼬리/촉수 왜곡", 
+            "외곽선 및 두께"
+        ];
+
+        function cloneGenome(g) {
+            return [...g];
+        }
+
+        function mutateGenome(g) {
+            let mutated = cloneGenome(g);
+            let numMutations = Math.floor(Math.random() * mutationRate) + 1;
+            for (let i = 0; i < numMutations; i++) {
+                let index = Math.floor(Math.random() * mutated.length);
+                let delta = (Math.random() < 0.5 ? 1 : -1) * (Math.random() < 0.8 ? 1 : 2);
+                mutated[index] += delta;
+                if (mutated[index] > 20) mutated[index] = 20;
+                if (mutated[index] < -20) mutated[index] = -20;
+            }
+            return mutated;
+        }
+
+        // Draw organism transitioning from basic tadpole to complex biomorph
+        function drawOrganism(canvas, genome, generation) {
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+            
+            ctx.clearRect(0, 0, width, height);
+            ctx.save();
+            ctx.translate(width / 2, height / 2);
+
+            // Check complexity relative to base tadpole genome
+            let complexity = genome.reduce((sum, val) => sum + Math.abs(val), 0);
+
+            if (generation === 1 && complexity === 0) {
+                // 1세대: 순수 기본 올챙이(Tadpole) 형태
+                
+                // 1. 꼬리 (S-curve tail)
+                ctx.beginPath();
+                ctx.moveTo(0, -5);
+                ctx.bezierCurveTo(15, 20, -15, 45, 0, 65);
+                ctx.strokeStyle = '#38bdf8';
+                ctx.lineWidth = 4;
+                ctx.lineCap = 'round';
+                ctx.stroke();
+
+                // 꼬리 지느러미 막 (Transparent tail fin)
+                ctx.beginPath();
+                ctx.moveTo(0, -5);
+                ctx.bezierCurveTo(22, 20, -22, 45, 0, 65);
+                ctx.bezierCurveTo(-10, 45, 10, 20, 0, -5);
+                ctx.fillStyle = 'rgba(56, 189, 248, 0.25)';
+                ctx.fill();
+
+                // 2. 머리 (Tadpole Body / Head)
+                ctx.beginPath();
+                ctx.ellipse(0, -20, 18, 24, 0, 0, Math.PI * 2);
+                ctx.fillStyle = '#0284c7';
+                ctx.fill();
+                ctx.lineWidth = 2.5;
+                ctx.strokeStyle = '#bae6fd';
+                ctx.stroke();
+
+                // 3. 눈 (Embryonic Eyes)
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(-7, -28, 4, 0, Math.PI * 2);
+                ctx.arc(7, -28, 4, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#0f172a';
+                ctx.beginPath();
+                ctx.arc(-7, -29, 2, 0, Math.PI * 2);
+                ctx.arc(7, -29, 2, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 4. 머리 내부 빛나는 원형 핵
+                ctx.beginPath();
+                ctx.arc(0, -16, 7, 0, Math.PI * 2);
+                ctx.fillStyle = '#38bdf8';
+                ctx.fill();
+            } else {
+                // 진화된 생물체 형태 (Recursive organic biomorph)
+                ctx.save();
+                ctx.translate(0, height * 0.25);
+
+                let maxDepth = Math.max(1, Math.min(5, Math.abs(genome[3]) % 4 + 2));
+                
+                function branch(len, depth, g) {
+                    if (depth > maxDepth || len < 3) return;
+
+                    let hue = (190 + Math.abs(g[5] * 25 + depth * 35)) % 360;
+                    let lightness = 45 + (depth * 8);
+                    ctx.strokeStyle = `hsl(${hue}, 80%, ${lightness}%)`;
+                    ctx.fillStyle = `hsl(${hue}, 70%, ${lightness - 10}%)`;
+                    ctx.lineWidth = Math.max(1, (maxDepth - depth + 1) * (Math.abs(g[8]) % 2 + 1) * 0.7);
+                    ctx.lineCap = 'round';
+
+                    // Draw main stem/body segment with subtle tail curvature influence
+                    let tailWiggle = Math.sin(depth + g[7] * 0.2) * (g[1] * 1.5);
+                    ctx.beginPath();
+                    ctx.moveTo(0, 0);
+                    ctx.quadraticCurveTo(tailWiggle, -len / 2, 0, -len);
+                    ctx.stroke();
+
+                    // Node or cell head at tips
+                    if (depth === maxDepth) {
+                        ctx.beginPath();
+                        ctx.arc(0, -len, Math.max(3, Math.abs(g[7]) + 2), 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.stroke();
+                    }
+
+                    ctx.translate(0, -len);
+
+                    let angle1 = (15 + g[1] * 5) * (Math.PI / 180);
+                    let angle2 = (30 + g[2] * 5) * (Math.PI / 180);
+                    let shrinkage = 0.7 + (g[6] * 0.015);
+
+                    // Left branch
+                    ctx.save();
+                    ctx.rotate(angle1);
+                    branch(len * shrinkage, depth + 1, g);
+                    ctx.restore();
+
+                    // Right branch (Symmetry)
+                    let symmetryMode = Math.abs(g[4]) % 3;
+                    if (symmetryMode !== 0) {
+                        ctx.save();
+                        ctx.rotate(-angle1);
+                        branch(len * shrinkage, depth + 1, g);
+                        ctx.restore();
+                    }
+
+                    if (symmetryMode === 2) {
+                        ctx.save();
+                        ctx.rotate(angle2);
+                        branch(len * 0.5, depth + 1, g);
+                        ctx.restore();
+                    }
+                }
+
+                let initialLength = Math.abs(genome[0]) * 2.5 + 22;
+                branch(initialLength, 0, genome);
+                ctx.restore();
+            }
+
+            ctx.restore();
+        }
+
+        function renderUI() {
+            // 1. Render Gene Inspector List
+            const geneListEl = document.getElementById('gene-list');
+            geneListEl.innerHTML = '';
+            parentGenome.forEach((val, idx) => {
+                const div = document.createElement('div');
+                div.className = 'flex items-center justify-between bg-slate-900/60 p-2 rounded-xl border border-slate-700/50';
+                div.innerHTML = `
+                    <span class="text-slate-400 text-[11px] truncate w-28" title="${geneLabels[idx]}">${idx+1}. ${geneLabels[idx]}</span>
+                    <div class="flex items-center space-x-2">
+                        <input type="number" id="gene-input-${idx}" value="${val}" class="w-14 bg-slate-800 text-white text-center rounded-lg px-1 py-0.5 border border-slate-700 text-xs focus:outline-none focus:border-sky-500">
+                    </div>
+                `;
+                geneListEl.appendChild(div);
+            });
+
+            // 2. Update generation text
+            document.getElementById('txt-generation').textContent = currentGeneration;
+
+            // 3. Render 3x3 Breeding Grid
+            const gridEl = document.getElementById('breeding-grid');
+            gridEl.innerHTML = '';
+
+            for (let i = 0; i < 9; i++) {
+                const isParent = (i === 4);
+                let genome = isParent ? parentGenome : mutateGenome(parentGenome);
+
+                const card = document.createElement('div');
+                card.className = `relative bg-slate-900/80 rounded-2xl p-3 border ${isParent ? 'border-sky-500 ring-2 ring-sky-500/30' : 'border-slate-700 hover:border-slate-500'} flex flex-col items-center justify-between transition group cursor-pointer shadow-lg`;
+                
+                card.innerHTML = `
+                    <div class="absolute top-2 left-3 text-[10px] font-semibold ${isParent ? 'text-sky-400 bg-sky-950/80 px-2 py-0.5 rounded-md border border-sky-800' : 'text-slate-400'}">
+                        ${isParent ? '현재 부모 개체' : `자손 #${i < 4 ? i+1 : i}`}
+                    </div>
+                    <div class="w-full h-44 flex items-center justify-center my-2">
+                        <canvas id="canvas-bio-${i}" width="220" height="180" class="w-full h-full object-contain"></canvas>
+                    </div>
+                    <div class="w-full flex items-center justify-between pt-2 border-t border-slate-800 text-[10px] text-slate-400">
+                        <span class="truncate max-w-[120px]" title="[${genome.join(', ')}]">[${genome.join(', ')}]</span>
+                        <span class="${isParent ? 'text-sky-400 font-bold' : 'group-hover:text-sky-300'}">${isParent ? '기준형태' : '선택하기 ➔'}</span>
+                    </div>
+                `;
+
+                if (!isParent) {
+                    card.addEventListener('click', () => {
+                        selectOffspring(genome);
+                    });
+                }
+
+                gridEl.appendChild(card);
+
+                setTimeout(() => {
+                    const canvas = document.getElementById(`canvas-bio-${i}`);
+                    if (canvas) drawOrganism(canvas, genome, currentGeneration);
+                }, 10);
+            }
+
+            renderLineage();
+        }
+
+        function selectOffspring(newGenome) {
+            ancestorHistory.push({ gen: currentGeneration, genome: cloneGenome(parentGenome) });
+            if (ancestorHistory.length > 8) ancestorHistory.shift();
+
+            parentGenome = cloneGenome(newGenome);
+            currentGeneration++;
+            renderUI();
+        }
+
+        function renderLineage() {
+            const container = document.getElementById('lineage-container');
+            if (ancestorHistory.length === 0) {
+                container.innerHTML = '<span class="text-xs text-slate-500 italic">1세대 기본 도형 조상부터 진화 계통수가 기록됩니다.</span>';
+                return;
+            }
+
+            container.innerHTML = '';
+            ancestorHistory.forEach((item, idx) => {
+                const node = document.createElement('div');
+                node.className = 'flex items-center space-x-2 bg-slate-900 px-3 py-2 rounded-xl border border-slate-700/60 flex-shrink-0';
+                node.innerHTML = `
+                    <div class="w-10 h-10 bg-slate-800 rounded-lg overflow-hidden flex items-center justify-center">
+                        <canvas id="canvas-ancestor-${idx}" width="40" height="40" class="w-full h-full object-contain"></canvas>
+                    </div>
+                    <div class="text-[11px]">
+                        <div class="text-sky-400 font-semibold">${item.gen}세대 조상</div>
+                        <div class="text-slate-500 text-[9px]">[${item.genome.slice(0,3).join(',')}]...</div>
+                    </div>
+                `;
+                container.appendChild(node);
+
+                setTimeout(() => {
+                    const canvas = document.getElementById(`canvas-ancestor-${idx}`);
+                    if (canvas) drawOrganism(canvas, item.genome, item.gen);
+                }, 10);
+            });
+        }
+
+        // Mutation rate slider
+        const mutationSlider = document.getElementById('input-mutation-rate');
+        const mutationValSpan = document.getElementById('val-mutation-rate');
+        mutationSlider.addEventListener('input', (e) => {
+            mutationRate = parseInt(e.target.value);
+            mutationValSpan.textContent = mutationRate;
+        });
+
+        // Apply custom genes
+        document.getElementById('btn-apply-genes').addEventListener('click', () => {
+            let newGenome = [];
+            for (let i = 0; i < 9; i++) {
+                const val = parseInt(document.getElementById(`gene-input-${i}`).value);
+                if (isNaN(val)) {
+                    showMessage('모든 유전자는 유효한 숫자여야 합니다.', 'error');
+                    return;
+                }
+                newGenome.push(val);
+            }
+            parentGenome = newGenome;
+            renderUI();
+            showMessage('유전자가 성공적으로 적용되었습니다.', 'success');
+        });
+
+        // Reset to generation 1 basic shape
+        document.getElementById('btn-reset').addEventListener('click', () => {
+            if (autoEvolveInterval) toggleAutoEvolve();
+            currentGeneration = 1;
+            parentGenome = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+            ancestorHistory = [];
+            renderUI();
+            showMessage('1세대 기본 올챙이 상태로 초기화되었습니다.', 'info');
+        });
+
+        // Auto-Evolve Toggle
+        const btnAuto = document.getElementById('btn-auto-evolve');
+        const iconAuto = document.getElementById('icon-auto');
+        const textAuto = document.getElementById('text-auto');
+        const selectSpeed = document.getElementById('select-speed');
+
+        function toggleAutoEvolve() {
+            if (autoEvolveInterval) {
+                clearInterval(autoEvolveInterval);
+                autoEvolveInterval = null;
+                iconAuto.className = 'fa-solid fa-play';
+                textAuto.textContent = '자동 진화 시작';
+                btnAuto.className = 'flex-1 py-2 px-3 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-semibold shadow-md transition flex items-center justify-center space-x-1.5';
+            } else {
+                iconAuto.className = 'fa-solid fa-pause';
+                textAuto.textContent = '자동 진화 중지';
+                btnAuto.className = 'flex-1 py-2 px-3 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-semibold shadow-md transition flex items-center justify-center space-x-1.5';
+                
+                let speed = parseInt(selectSpeed.value);
+                autoEvolveInterval = setInterval(() => {
+                    parentGenome = mutateGenome(parentGenome);
+                    currentGeneration++;
+                    renderUI();
+                }, speed);
+            }
+        }
+
+        btnAuto.addEventListener('click', toggleAutoEvolve);
+
+        // Export and Import Modals
+        document.getElementById('btn-export').addEventListener('click', () => {
+            const codeStr = parentGenome.join(', ');
+            navigator.clipboard.writeText(codeStr).then(() => {
+                showMessage(`유전자 코드 [${codeStr}]가 클립보드에 복사되었습니다!`, 'success');
+            }).catch(() => {
+                showMessage(`유전자 코드: ${codeStr}`, 'info');
+            });
+        });
+
+        const importModal = document.getElementById('modal-import');
+        document.getElementById('btn-import').addEventListener('click', () => {
+            document.getElementById('import-textarea').value = parentGenome.join(', ');
+            importModal.classList.remove('hidden');
+        });
+
+        document.getElementById('import-close').addEventListener('click', () => importModal.classList.add('hidden'));
+        document.getElementById('import-cancel').addEventListener('click', () => importModal.classList.add('hidden'));
+
+        document.getElementById('import-submit').addEventListener('click', () => {
+            const text = document.getElementById('import-textarea').value;
+            const parts = text.split(/[\s,]+/).filter(Boolean).map(Number);
+            if (parts.length !== 9 || parts.some(isNaN)) {
+                showMessage('9자리의 올바른 숫자 유전자 코드를 입력해주세요.', 'error');
+                return;
+            }
+            parentGenome = parts;
+            importModal.classList.add('hidden');
+            renderUI();
+            showMessage('유전자 코드를 성공적으로 불러왔습니다.', 'success');
+        });
+
+        // Help Modal
+        const helpModal = document.getElementById('modal-help');
+        document.getElementById('btn-help').addEventListener('click', () => helpModal.classList.remove('hidden'));
+        document.getElementById('modal-close').addEventListener('click', () => helpModal.classList.add('hidden'));
+        document.getElementById('btn-help-ok').addEventListener('click', () => helpModal.classList.add('hidden'));
+
+        // Initial load
+        window.onload = function() {
+            renderUI();
+        };
+    </script>
+</body>
+</html>
