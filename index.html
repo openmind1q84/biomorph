@@ -223,6 +223,42 @@
         </div>
     </div>
 
+    <!-- Ancestor Detail Modal -->
+    <div id="modal-ancestor" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-cardBg border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
+            <button id="ancestor-close" class="absolute top-4 right-4 text-slate-400 hover:text-white text-lg">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <div class="flex items-center space-x-2 mb-4">
+                <span class="bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2.5 py-1 rounded-lg text-xs font-bold" id="ancestor-modal-gen">1세대 조상</span>
+                <h3 class="text-base font-bold text-white">개체 상세 정보 및 유전자 코드</h3>
+            </div>
+            
+            <!-- Enlarged Canvas -->
+            <div class="w-full h-64 bg-slate-900 rounded-2xl border border-slate-700/80 flex items-center justify-center mb-4 p-2">
+                <canvas id="canvas-ancestor-detail" width="320" height="240" class="w-full h-full object-contain"></canvas>
+            </div>
+
+            <!-- Full 9-digit Gene Code -->
+            <div class="bg-slate-900/90 border border-slate-700 rounded-xl p-3 mb-4">
+                <div class="text-[11px] text-slate-400 mb-1">유전자 코드 (9자리)</div>
+                <div id="ancestor-modal-code" class="text-sm font-mono font-bold text-sky-400 tracking-wide select-all">[0, 0, 0, 0, 0, 0, 0, 0, 0]</div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="grid grid-cols-2 gap-2">
+                <button id="btn-ancestor-copy" class="py-2.5 px-3 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-semibold shadow transition flex items-center justify-center space-x-1.5">
+                    <i class="fa-solid fa-copy"></i>
+                    <span>유전자 코드 복사</span>
+                </button>
+                <button id="btn-ancestor-download" class="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold shadow transition flex items-center justify-center space-x-1.5">
+                    <i class="fa-solid fa-download"></i>
+                    <span>이미지 저장 (PNG)</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // Custom message box replacement for alert()
         function showMessage(text, type = 'info') {
@@ -473,33 +509,53 @@
 
         function selectOffspring(newGenome) {
             ancestorHistory.push({ gen: currentGeneration, genome: cloneGenome(parentGenome) });
-            if (ancestorHistory.length > 8) ancestorHistory.shift();
 
             parentGenome = cloneGenome(newGenome);
             currentGeneration++;
             renderUI();
         }
 
+        // Open Ancestor Detail Popup
+        let currentModalAncestor = null;
+        function openAncestorModal(item) {
+            currentModalAncestor = item;
+            document.getElementById('ancestor-modal-gen').textContent = `${item.gen}세대 조상`;
+            document.getElementById('ancestor-modal-code').textContent = `[ ${item.genome.join(', ')} ]`;
+            
+            const modal = document.getElementById('modal-ancestor');
+            modal.classList.remove('hidden');
+
+            setTimeout(() => {
+                const canvas = document.getElementById('canvas-ancestor-detail');
+                if (canvas) drawOrganism(canvas, item.genome, item.gen);
+            }, 10);
+        }
+
         function renderLineage() {
             const container = document.getElementById('lineage-container');
             if (ancestorHistory.length === 0) {
-                container.innerHTML = '<span class="text-xs text-slate-500 italic">1세대 기본 도형 조상부터 진화 계통수가 기록됩니다.</span>';
+                container.innerHTML = '<span class="text-xs text-slate-500 italic">1세대 기본 올챙이 조상부터 진화 계통수가 기록됩니다. (클릭 시 상세 정보 확인)</span>';
                 return;
             }
 
             container.innerHTML = '';
             ancestorHistory.forEach((item, idx) => {
                 const node = document.createElement('div');
-                node.className = 'flex items-center space-x-2 bg-slate-900 px-3 py-2 rounded-xl border border-slate-700/60 flex-shrink-0';
+                node.className = 'flex items-center space-x-2 bg-slate-900 hover:bg-slate-800 px-3 py-2 rounded-xl border border-slate-700/60 hover:border-purple-500/60 flex-shrink-0 cursor-pointer transition group';
+                node.title = '클릭하여 확대 이미지 및 전체 유전자 코드 보기';
                 node.innerHTML = `
-                    <div class="w-10 h-10 bg-slate-800 rounded-lg overflow-hidden flex items-center justify-center">
+                    <div class="w-10 h-10 bg-slate-800 rounded-lg overflow-hidden flex items-center justify-center group-hover:ring-1 group-hover:ring-purple-400">
                         <canvas id="canvas-ancestor-${idx}" width="40" height="40" class="w-full h-full object-contain"></canvas>
                     </div>
                     <div class="text-[11px]">
-                        <div class="text-sky-400 font-semibold">${item.gen}세대 조상</div>
+                        <div class="text-sky-400 group-hover:text-purple-300 font-semibold flex items-center space-x-1">
+                            <span>${item.gen}세대 조상</span>
+                            <i class="fa-solid fa-magnifying-glass-plus text-[9px] opacity-70"></i>
+                        </div>
                         <div class="text-slate-500 text-[9px]">[${item.genome.slice(0,3).join(',')}]...</div>
                     </div>
                 `;
+                node.addEventListener('click', () => openAncestorModal(item));
                 container.appendChild(node);
 
                 setTimeout(() => {
@@ -609,6 +665,43 @@
         document.getElementById('btn-help').addEventListener('click', () => helpModal.classList.remove('hidden'));
         document.getElementById('modal-close').addEventListener('click', () => helpModal.classList.add('hidden'));
         document.getElementById('btn-help-ok').addEventListener('click', () => helpModal.classList.add('hidden'));
+
+        // Ancestor Detail Modal Controls
+        const ancestorModal = document.getElementById('modal-ancestor');
+        document.getElementById('ancestor-close').addEventListener('click', () => ancestorModal.classList.add('hidden'));
+        ancestorModal.addEventListener('click', (e) => {
+            if (e.target === ancestorModal) ancestorModal.classList.add('hidden');
+        });
+
+        document.getElementById('btn-ancestor-copy').addEventListener('click', () => {
+            if (!currentModalAncestor) return;
+            const codeStr = currentModalAncestor.genome.join(', ');
+            const tempInput = document.createElement('textarea');
+            tempInput.value = codeStr;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempInput);
+            showMessage(`${currentModalAncestor.gen}세대 유전자 코드 [${codeStr}]가 복사되었습니다!`, 'success');
+        });
+
+        document.getElementById('btn-ancestor-download').addEventListener('click', () => {
+            if (!currentModalAncestor) return;
+            const sourceCanvas = document.getElementById('canvas-ancestor-detail');
+            // Create temporary canvas with dark background for clean image export
+            const exportCanvas = document.createElement('canvas');
+            exportCanvas.width = sourceCanvas.width;
+            exportCanvas.height = sourceCanvas.height;
+            const ctx = exportCanvas.getContext('2d');
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+            ctx.drawImage(sourceCanvas, 0, 0);
+
+            const link = document.createElement('a');
+            link.download = `biomorph_gen${currentModalAncestor.gen}.png`;
+            link.href = exportCanvas.toDataURL('image/png');
+            link.click();
+        });
 
         // Initial load
         window.onload = function() {
