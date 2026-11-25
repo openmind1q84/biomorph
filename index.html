@@ -31,7 +31,6 @@
         canvas {
             touch-action: none;
         }
-        /* Custom scrollbars */
         ::-webkit-scrollbar {
             width: 6px;
             height: 6px;
@@ -46,6 +45,9 @@
     </style>
 </head>
 <body class="min-h-screen flex flex-col">
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col space-y-2 pointer-events-none"></div>
 
     <header class="bg-cardBg border-b border-slate-700 px-6 py-4 flex flex-wrap items-center justify-between shadow-lg">
         <div class="flex items-center space-x-3">
@@ -197,6 +199,83 @@
             </div>
         </div>
     </div>
+
+    <!-- Import Gene Code Modal -->
+    <div id="modal-import" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-cardBg border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
+            <button id="import-close" class="absolute top-4 right-4 text-slate-400 hover:text-white text-lg">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <h3 class="text-lg font-bold text-white mb-2 flex items-center space-x-2">
+                <i class="fa-solid fa-file-import text-sky-400"></i>
+                <span>유전자 코드 가져오기</span>
+            </h3>
+            <p class="text-xs text-slate-400 mb-3">9자리의 유전자 숫자를 쉼표(,)로 구분하여 입력하세요. (예: 0, 2, -3, 1, 0, 4, 2, 0, 1)</p>
+            <textarea id="import-textarea" rows="2" class="w-full bg-slate-900 text-white rounded-xl p-3 border border-slate-700 text-xs focus:outline-none focus:border-sky-500 font-mono"></textarea>
+            <div class="mt-4 flex justify-end space-x-2">
+                <button id="import-cancel" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-xl text-xs font-medium">취소</button>
+                <button id="import-submit" class="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-semibold shadow">적용하기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ancestor Detail Modal -->
+    <div id="modal-ancestor" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-cardBg border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl relative flex flex-col items-center">
+            <button id="ancestor-close" class="absolute top-4 right-4 text-slate-400 hover:text-white text-lg">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <div class="w-full flex items-center space-x-2 mb-3">
+                <span class="bg-purple-500/20 text-purple-300 border border-purple-500/40 px-2.5 py-0.5 rounded-lg text-xs font-bold" id="ancestor-modal-gen">1세대 조상</span>
+                <span class="text-xs text-slate-400">상세 형태 및 유전자 코드</span>
+            </div>
+            
+            <div class="w-full h-60 bg-slate-900 rounded-2xl border border-slate-700/80 flex items-center justify-center my-2 p-2">
+                <canvas id="canvas-ancestor-detail" width="320" height="240" class="w-full h-full object-contain"></canvas>
+            </div>
+
+            <div class="w-full bg-slate-900/90 rounded-xl p-3 border border-slate-700/60 mt-2">
+                <div class="text-[11px] text-slate-400 mb-1">유전자 코드 (9자리):</div>
+                <div id="ancestor-modal-code" class="font-mono text-sm text-sky-400 font-bold tracking-wider text-center select-all">[ 0, 0, 0, 0, 0, 0, 0, 0, 0 ]</div>
+            </div>
+
+            <div class="w-full flex space-x-2 mt-4">
+                <button id="btn-ancestor-copy" class="flex-1 py-2.5 px-3 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-semibold shadow transition flex items-center justify-center space-x-1.5">
+                    <i class="fa-solid fa-copy"></i>
+                    <span>유전자 코드 복사</span>
+                </button>
+                <button id="btn-ancestor-download" class="flex-1 py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold shadow transition flex items-center justify-center space-x-1.5">
+                    <i class="fa-solid fa-download"></i>
+                    <span>이미지 저장 (PNG)</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Toast Notification Helper
+        function showMessage(msg, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const colors = {
+                success: 'bg-emerald-600 border-emerald-400 text-white',
+                error: 'bg-rose-600 border-rose-400 text-white',
+                info: 'bg-slate-800 border-sky-500 text-slate-100'
+            };
+            toast.className = `px-4 py-2.5 rounded-xl border shadow-xl text-xs font-medium transition-all duration-300 transform translate-y-2 opacity-0 ${colors[type] || colors.info}`;
+            toast.textContent = msg;
+            container.appendChild(toast);
+
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            });
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 2800);
+        }
+
         // --- EVOLUTIONARY ENGINE: PROTO-ARTHROPOD TO DIVERSE ORGANISMS ---
         let currentGeneration = 1;
         // 1세대 초기 유전자: [0,0,0,0,0,0,0,0,0] -> 원시 3마디 유영 생물체
@@ -333,7 +412,6 @@
             const isJointedLeg = gLimbShape <= -2;
 
             for (let p = 0; p < limbPairs; p++) {
-                // Distribute pairs across segments
                 const segIdx = Math.min(numSegments - 1, Math.floor((p / limbPairs) * numSegments));
                 const py = startY + segIdx * segLength + segLength * 0.5;
                 const taper = 1 - (segIdx / (numSegments + 1)) * 0.35;
@@ -349,7 +427,6 @@
                     ctx.lineCap = 'round';
 
                     if (isWingMode) {
-                        // Broad butterfly/ray-like fin or wing
                         const wLen = limbLen * pairScale * 1.15;
                         const wHeight = segLength * 0.9;
                         ctx.beginPath();
@@ -364,7 +441,6 @@
                         ctx.fill();
                         ctx.stroke();
                     } else if (isJointedLeg) {
-                        // Articulated arthropod/spider leg with knee joint
                         const l1 = limbLen * 0.55 * pairScale;
                         const l2 = limbLen * 0.65 * pairScale;
                         const kneeX = dir * l1 * Math.cos(limbAngle * 0.4);
@@ -378,13 +454,11 @@
                         ctx.lineTo(footX, footY);
                         ctx.stroke();
 
-                        // Joint dot
                         ctx.fillStyle = glowColor;
                         ctx.beginPath();
                         ctx.arc(kneeX, kneeY, 2, 0, Math.PI * 2);
                         ctx.fill();
                     } else {
-                        // Default 1st-gen paddle fin / simple leg
                         const endX = dir * limbLen * pairScale * Math.cos(limbAngle);
                         const endY = 6 + limbLen * pairScale * Math.sin(limbAngle);
                         ctx.beginPath();
@@ -399,14 +473,13 @@
                 });
             }
 
-            // 5. Segmented Body (Drawn from back to front for natural overlapping)
+            // 5. Segmented Body (Drawn from back to front)
             for (let s = numSegments - 1; s >= 0; s--) {
                 const sy = startY + s * segLength + segLength * 0.5;
                 const taper = 1 - (s / (numSegments + 1)) * 0.42;
                 const rx = baseBodyWidth * taper;
                 const ry = segLength * 0.65;
 
-                // Dorsal spines / carapace spikes if gSpines != 0
                 if (Math.abs(gSpines) >= 1) {
                     const spikeLen = Math.min(18, Math.abs(gSpines) * 2.2);
                     ctx.fillStyle = limbColor;
@@ -420,7 +493,6 @@
                     });
                 }
 
-                // Main segment oval
                 ctx.beginPath();
                 ctx.ellipse(0, sy, rx, ry, 0, 0, Math.PI * 2);
                 ctx.fillStyle = (s % 2 === 0) ? bodyFill : bodyDark;
@@ -429,7 +501,6 @@
                 ctx.strokeStyle = glowColor;
                 ctx.stroke();
 
-                // Camouflage spots / stripes pattern when gColor is strong
                 if (Math.abs(gColor) >= 2) {
                     ctx.fillStyle = `hsla(${secondaryHue}, 90%, 70%, 0.55)`;
                     ctx.beginPath();
@@ -438,12 +509,11 @@
                 }
             }
 
-            // 6. Head, Antennae/Mandibles & Eyes (Front of the organism)
+            // 6. Head, Antennae/Mandibles & Eyes
             const headY = startY - 4;
             const headRx = baseBodyWidth * (0.95 + Math.max(-0.2, gHead * 0.03));
             const headRy = Math.max(11, 13 + Math.abs(gHead) * 0.5);
 
-            // Antennae or Mandibles
             const antLen = Math.max(8, 10 + Math.abs(gHead) * 2.4);
             [-1, 1].forEach(dir => {
                 ctx.beginPath();
@@ -451,14 +521,12 @@
                 ctx.lineWidth = strokeW * 0.85;
                 ctx.lineCap = 'round';
                 if (gHead >= 0) {
-                    // Long sensory antennae
                     ctx.moveTo(dir * headRx * 0.4, headY - headRy * 0.7);
                     ctx.quadraticCurveTo(
                         dir * (headRx * 0.9 + antLen * 0.4), headY - headRy - antLen * 0.6,
                         dir * (headRx * 0.5 + antLen * 0.7), headY - headRy - antLen
                     );
                 } else {
-                    // Beetle-like pincers / mandibles
                     ctx.moveTo(dir * headRx * 0.45, headY - headRy * 0.6);
                     ctx.quadraticCurveTo(
                         dir * (headRx * 0.85), headY - headRy - antLen * 0.7,
@@ -468,7 +536,6 @@
                 ctx.stroke();
             });
 
-            // Head Shield
             ctx.beginPath();
             ctx.ellipse(0, headY, headRx, headRy, 0, 0, Math.PI * 2);
             ctx.fillStyle = bodyFill;
@@ -477,7 +544,6 @@
             ctx.strokeStyle = glowColor;
             ctx.stroke();
 
-            // Eyes (Size scales with gHead)
             const eyeRadius = Math.max(2.5, Math.min(6, 3.2 + Math.abs(gHead) * 0.25));
             const eyeX = headRx * 0.52;
             const eyeY = headY - headRy * 0.35;
@@ -669,6 +735,7 @@
                 
                 let speed = parseInt(selectSpeed.value);
                 autoEvolveInterval = setInterval(() => {
+                    ancestorHistory.push({ gen: currentGeneration, genome: cloneGenome(parentGenome) });
                     parentGenome = mutateGenome(parentGenome);
                     currentGeneration++;
                     renderUI();
@@ -738,7 +805,6 @@
         document.getElementById('btn-ancestor-download').addEventListener('click', () => {
             if (!currentModalAncestor) return;
             const sourceCanvas = document.getElementById('canvas-ancestor-detail');
-            // Create temporary canvas with dark background for clean image export
             const exportCanvas = document.createElement('canvas');
             exportCanvas.width = sourceCanvas.width;
             exportCanvas.height = sourceCanvas.height;
